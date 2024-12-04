@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Delayed Quotes</title>
+    <link
+      href="https://maxcdn.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css"
+      rel="stylesheet"
+    />
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
+    <style>
+      .light-mode {
+        --background-color: #ffffff;
+        --text-color: #000000;
+      }
+
+      .dark-mode {
+        --background-color: #222222;
+        --text-color: #ffffff;
+      }
+
+      body {
+        background-color: var(--background-color);
+        color: var(--text-color);
+      }
+
+      .table th,
+      .table td {
+        border: 1px solid var(--text-color);
+        vertical-align: middle;
+        text-align: center;
+        font-size: 14px;
+      }
+
+      .top-header {
+        text-align: center;
+      }
+
+      .negative {
+        color: red;
+      }
+
+      .positive {
+        color: green;
+      }
+
+      .flashing {
+        animation: flash 1s infinite alternate;
+      }
+
+      @keyframes flash {
+        0% {
+          background-color: yellow;
+        }
+
+        100% {
+          background-color: yellow;
+        }
+      }
+
+      th.clickable:hover {
+        cursor: pointer;
+        background-color: #f0f0f0;
+      }
+
+      /* Define text color classes for light and dark modes */
+      .text-light {
+        color: #ffffff;
+      }
+
+      .text-dark {
+        color: #000000;
+      }
+    </style>
+  </head>
+  <body class="light-mode">
+    <div class="container">
+      <div class="d-flex justify-content-between align-items-center">
+        <h2>Delayed Quotes</h2>
+        <div class="form-group">
+          <select class="form-control" id="exchangeSelect">
+            <option value="SGX">SGX</option>
+            <option value="BURSA">BURSA</option>
+            <option value="NASDAQ">NASDAQ</option>
+          </select>
+          <button id="themeToggle" class="btn btn-primary">Dark Theme</button>
+        </div>
+      </div>
+
+      <table class="table" id="quotesTable">
+        <thead>
+          <tr class="top-header">
+            <th id="topVolumeHeader" class="clickable text-dark text-left">
+              Top <br />
+              Volume
+            </th>
+            <th id="topGainersHeader" class="clickable text-dark text-right">
+              Top <br />Gainers
+            </th>
+            <th id="topLosersHeader" class="clickable text-dark text-right">
+              Top <br />Losers
+            </th>
+            <th class="text-dark text-right">
+              Top % <br />
+              Gainer
+            </th>
+            <th class="text-dark text-right">
+              Top % <br />
+              Loser
+            </th>
+          </tr>
+          <tr>
+            <th class="text-secondary text-left">
+              Stock <br />
+              Code
+            </th>
+            <th class="text-right text-secondary">
+              Last <br />
+              Vol
+            </th>
+            <th class="text-right text-secondary">
+              +/- <br />
+              %Chng
+            </th>
+            <th class="text-right text-secondary">
+              Buy <br />
+              Buy Vol
+            </th>
+            <th class="text-right text-secondary">
+              Sell <br />
+              Sell Vol
+            </th>
+          </tr>
+        </thead>
+        <tbody id="quotesBody"></tbody>
+      </table>
+    </div>
+
+    <script>
+      $(document).ready(function () {
+        $("#themeToggle").click(function () {
+          if ($("body").hasClass("dark-mode")) {
+            $("body").removeClass("dark-mode").addClass("light-mode");
+          } else {
+            $("body").removeClass("light-mode").addClass("dark-mode");
+          }
+          updateTextColor();
+          updateTextColor1();
+        });
+
+        $("#topVolumeHeader").click(function () {
+          fetchQuotes(0);
+        });
+
+        $("#topGainersHeader").click(function () {
+          fetchQuotes(1);
+        });
+
+        $("#topLosersHeader").click(function () {
+          fetchQuotes(2);
+        });
+
+        $("#exchangeSelect").change(function () {
+          fetchQuotes();
+        });
+
+        fetchQuotes();
+        setInterval(fetchQuotes, 5000);
+
+        let previousData;
+
+        function fetchQuotes(list = 0) {
+          const selectedMarket = $("#exchangeSelect").val();
+          let marketId;
+
+          if (selectedMarket === "SGX") {
+            marketId = 0;
+          } else if (selectedMarket === "BURSA") {
+            marketId = 2;
+          } else if (selectedMarket === "NASDAQ") {
+            marketId = 3;
+          }
+
+          const url = `https://livefeed3.chartnexus.com/Dummy/quotes?market_id=${marketId}&list=${list}`;
+
+          $.ajax({
+            url: url,
+            type: "GET",
+            dataType: "json",
+            success: function (data) {
+              $("#quotesBody").empty();
+              $.each(data, function (index, quote) {
+                const posNeg = quote.last - quote.previous;
+                const posNegSymbol = posNeg >= 0 ? "+" : "-";
+                const posNegClass = posNeg >= 0 ? "positive" : "negative";
+                const change =
+                  ((quote.last - quote.previous) / quote.previous) * 100;
+                const changeSymbol = change >= 0 ? "+" : "-";
+                const changeClass = change >= 0 ? "positive" : "negative";
+                const buyVolume = formatVolume(quote.buy_volume);
+                const sellVolume = formatVolume(quote.sell_volume);
+                const Volume = formatVolume(quote.volume);
+                const row = `
+            <tr>
+<td class="${getThemeClass()} text-left">
+  <span class="font-weight-bold">${quote.name}</span><br>
+  ${quote.stockcode}
+</td>
+
+                <td class="${posNegClass} text-right">${quote.last.toFixed(
+                  3
+                )}<br>${Volume}</td>
+                <td class="${posNegClass} text-right">${posNegSymbol}${Math.abs(
+                  posNeg
+                ).toFixed(3)} <br> ${changeSymbol}${Math.abs(
+                  change.toFixed(1)
+                )}%</td>
+
+                <td class="${getThemeClass()} text-right">${quote.buy_price.toFixed(
+                  3
+                )} <br> ${buyVolume}</td>
+
+                
+                <td class="${getThemeClass()} text-right">${quote.sell_price.toFixed(
+                  3
+                )} <br> ${sellVolume}</td>
+            </tr>
+        `;
+                $("#quotesBody").append(row);
+
+                if (
+                  previousData &&
+                  JSON.stringify(previousData[index]) !== JSON.stringify(quote)
+                ) {
+                  highlightCellChange(index);
+                }
+              });
+              previousData = data;
+            },
+            error: function (xhr, status, error) {
+              console.error("Error fetching quotes:", error);
+              console.log("Response from server:", xhr.responseText);
+            },
+          });
+        }
+
+        function formatVolume(volume) {
+          if (volume >= 1000000) {
+            return (
+              (volume / 1000000).toFixed(volume.toString().length > 7 ? 1 : 2) +
+              "M"
+            );
+          } else if (volume >= 1000) {
+            return (
+              (volume / 1000).toFixed(volume.toString().length > 4 ? 1 : 2) +
+              "K"
+            );
+          } else {
+            return volume.toString();
+          }
+        }
+
+        function highlightCellChange(index) {
+          $(`#quotesBody tr:nth-child(${index + 1}) td`).addClass("flashing");
+
+          setTimeout(() => {
+            $(`#quotesBody tr:nth-child(${index + 1}) td`).removeClass(
+              "flashing"
+            );
+          }, 1000);
+        }
+
+        function getThemeClass() {
+          return $("body").hasClass("dark-mode") ? "text-light" : "text-dark";
+        }
+
+        // Function to update text color of all td elements
+        function updateTextColor() {
+          const themeClass = $("body").hasClass("dark-mode")
+            ? "text-light"
+            : "text-dark";
+          $(".table th")
+            .removeClass("text-dark text-light")
+            .addClass(themeClass);
+        }
+        function updateTextColor1() {
+          const themeClass = $("body").hasClass("dark-mode")
+            ? "text-light"
+            : "text-dark";
+          $(".table td")
+            .removeClass("text-dark text-light")
+            .addClass(themeClass);
+        }
+      });
+    </script>
+  </body>
+</html>
